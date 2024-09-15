@@ -7,224 +7,228 @@ DECLARATION OF AUTHORSHIP: I HEREBY DECLARE THAT THE SOURCE CODE I AM SUBMITTING
 #include <bits/stdc++.h>
 using namespace std;
 
-//all variables and data structures
-string fileName;//storing the file name in order to make the 
-vector<vector<string>>source_code(10000);//Stores each non empty line
-vector<string>machine_code(10000);//Holds the machine code in hex
-int machine_code_obj[10000];//Used to create the object code
-vector<pair<int,string>>errors;//Stores all the errors encounteres
-vector<pair<int,string>>warnings;//Stores all the warnings encountered
-bool halt_flag=false;//Used to check if halt is implemented or not
-map<string,char>bin_to_hex;//stores conversion of binary to hex
-map<string,int>inst_0_op;//stores the mnemonics and opcode of 0operand instructions
-map<string,int>inst_1_op;//stores the mnemonics and opcode of 1 operand instructions
-map<string,int>inst_1_of;//stores the mnemonics and opcode of 1 offset instructions
-map<string,int>labels;//stores the label names and corresponding address
-map<string,int>labels_line;
-set<string>used_labels;
+// All variables and data structures
+string fileName; // Stores the file name to append to output files
+vector<vector<string>> source_code(10000); // Stores each non-empty line of the source code
+vector<string> machine_code(10000); // Holds the machine code in hexadecimal
+int machine_code_obj[10000]; // Used to create the object code
+vector<pair<int, string>> errors; // Stores all errors encountered
+vector<pair<int, string>> warnings; // Stores all warnings encountered
+bool halt_flag = false; // Used to check if the HALT instruction is implemented
+map<string, char> bin_to_hex; // Stores the conversion of binary to hexadecimal
+map<string, int> inst_0_op; // Stores the mnemonics and opcodes of 0-operand instructions
+map<string, int> inst_1_op; // Stores the mnemonics and opcodes of 1-operand instructions
+map<string, int> inst_1_of; // Stores the mnemonics and opcodes of 1-offset instructions
+map<string, int> labels; // Stores the label names and corresponding addresses
+map<string, int> labels_line;
+set<string> used_labels; // Stores the used labels
 
-// ALL FUNCTIONS USED
-void init();//initializes the mnemonics and opcodes and conversions
-void identify_warnings();
-void print_warnings();
-void print_errors();
-void generate_log();
-void generate_list();
-void generate_obj();
-void SET();
-bool isValidLabel(string s);
-int isValid(string s);//Checks if the operand is a valid label or number
-string decl_to_hexa(int num,int no_bits);//converts a decimal to corresponding hexadecimal(32bit)
-int convert_to_decimal(string s,int line);//converts string to decimal
-string clean(string s,int len);//trims spaces
-void first_pass(string s,int line_num,int* pc);//inital pass to check errors and store labels and each line
-void second_pass();//makes the machine code and also checks for remaining errors
-void make_machine_code(int instruction_type,string mnemonic,string operand,int pc,string label_to_be_used);
+// All functions used
+void init(); // Initializes the mnemonics, opcodes, and conversions
+void identify_warnings(); // Identifies warnings in the source code
+void print_warnings(); // Prints warnings to the console
+void print_errors(); // Prints errors to the console
+void generate_log(); // Generates a log file with labels, errors, and warnings
+void generate_list(); // Generates a listing file
+void generate_obj(); // Generates an object file
+void SET(); // Sets up the labels and addresses
+bool isValidLabel(string s); // Checks if a label is valid
+int isValid(string s); // Checks if an operand is a valid label or number
+string decl_to_hexa(int num, int no_bits); // Converts a decimal to a 32-bit hexadecimal
+int convert_to_decimal(string s, int line); // Converts a string to a decimal
+string clean(string s, int len); // Trims spaces from a string
+void first_pass(string s, int line_num, int* pc); // Performs the first pass to check errors and store labels and each line
+void second_pass(); // Performs the second pass to generate machine code and check for remaining errors
+void make_machine_code(int instruction_type, string mnemonic, string operand, int pc, string label_to_be_used);
 
-
-int main(int argc,char* argv[])
-{
-    if(argc!=2)//check if valid input
-    {
-        cout<<"Invalid file input, It must be ./asm filename.asm"<<endl;
+int main(int argc, char* argv[]) {
+    // Check if the input is valid
+    if (argc != 2) {
+        cout << "Invalid file input, It must be ./asm filename.asm" << endl;
         exit(0);
     }
-    init();//initialize fn
-    fileName="";
-    //file name extraction so as to append to the outputfiles
-    for(int i = 0; i<strlen(argv[1]);i++)
-    {
-        if(argv[1][i]=='.')
-        break;
-        fileName= fileName+argv[1][i];
-    }
-    fstream if_ptr;
-    if_ptr.open(argv[1],ios::in);
 
-    //check if it opens, then proceeds to extract each line and go through first pass to identify labels and errors
-    if(if_ptr.is_open())
-    {
+    // Initialize the data structures and functions
+    init();
+
+    // Extract the file name from the input
+    fileName = "";
+    for (int i = 0; i < strlen(argv[1]); i++) {
+        if (argv[1][i] == '.') break;
+        fileName = fileName + argv[1][i];
+    }
+
+    // Open the input file
+    fstream if_ptr;
+    if_ptr.open(argv[1], ios::in);
+
+    // Check if the file is open
+    if (if_ptr.is_open()) {
         int line = 1;
         string current;
         int pc = 0;
 
-        while(getline(if_ptr,current))
-        {
+        // Read each line of the file and perform the first pass
+        while (getline(if_ptr, current)) {
             string k = "";
-            for(int i = 0; i<current.length();i++)
-            {
-                if(current[i]==';')
-                break;
-                k=k+current[i];
+            for (int i = 0; i < current.length(); i++) {
+                if (current[i] == ';') break;
+                k = k + current[i];
             }
-            //cout<<k<<endl;
-            if(k!="")//not empty then go to first pass, else just increase line number and move forward, pc stays the same, empty line not counted
-            first_pass(k,line,&pc);
+
+            // Check if the line is not empty
+            if (k != "") {
+                // Perform the first pass
+                first_pass(k, line, &pc);
+            }
 
             line++;
-
         }
+
+        // Set up the labels and addresses
         SET();
-		second_pass();// Used to convert given assmebly to machine code and along with that identify more errors 
-		identify_warnings();
+
+        // Perform the second pass to generate machine code and check for remaining errors
+        second_pass();
+
+        // Identify warnings in the source code
+        identify_warnings();
+    } else {
+        // Add an error if the file cannot be opened
+        errors.push_back({0, "Unable to open given file, please check format of the file"});
     }
 
-    else
-	{
-		errors.push_back({0,"Unable to open given file, please check format of the file"});// Invalid file argument 
-    }	
-    
-	generate_log();// Write lables info, errors and warnings to a log file
-	generate_list();// generate listing file
-	
-	if(errors.empty())// Check if given assembly has errors or not 
-	{		
-		
-		if(!warnings.empty())// Print warnings, if present
-			print_warnings();
-	
-		generate_obj(); // generate object file		
-	}
-	else
-	{
-		
-		print_errors();
-		if(!warnings.empty())
-			print_warnings();// print all errors along with existing warnings
-	}
-	if_ptr.close();// Close source file 
-	return 0;
+    // Generate a log file with labels, errors, and warnings
+    generate_log();
+
+    // Generate a listing file
+    generate_list();
+
+    // Check if there are any errors
+    if (errors.empty()) {
+        // Print warnings if present
+        if (!warnings.empty()) print_warnings();
+
+        // Generate an object file
+        generate_obj();
+    } else {
+        // Print errors and warnings
+        print_errors();
+        if (!warnings.empty()) print_warnings();
+    }
+
+    // Close the input file
+    if_ptr.close();
+
+    return 0;
 }
 
-void init()
-{
-    inst_0_op={{"add",6},
-                {"sub",7},
-                {"shl",8},
-                {"shr",9},
-                {"a2sp",11},
-                {"sp2a",12},
-                {"return",14},
-                {"HALT",18}
-               };
-    inst_1_op={
-                {"ldc",0},
-                {"adc",1},
-                {"ldl",2},
-                {"stl",3},
-                {"ldnl",4},
-                {"stnl",5},
-                {"adj",10},
-                {"call",13},
-                {"brz",15},
-                {"brlz",16},
-                {"br",17},
-                {"SET",19},
-                {"data",20}
-              } ;
-    inst_1_of={
-                {"call",13},
-                {"brz",15},
-                {"brlz",16},
-                {"br",17}
-              };
-    bin_to_hex={
-                {"0000",'0'},
-                {"0001",'1'},
-                {"0010",'2'},
-                {"0011",'3'},
-                {"0100",'4'},
-                {"0101",'5'},
-                {"0110",'6'},
-                {"0111",'7'},
-                {"1000",'8'},
-                {"1001",'9'},
-                {"1010",'A'},
-                {"1011",'B'},
-                {"1100",'C'},
-                {"1101",'D'},
-                {"1110",'E'},
-                {"1111",'F'}
-               } ;                
+void init() {
+    // Initialize the instruction opcodes for 0-operand instructions
+    inst_0_op = {
+        {"add", 6},
+        {"sub", 7},
+        {"shl", 8},
+        {"shr", 9},
+        {"a2sp", 11},
+        {"sp2a", 12},
+        {"return", 14},
+        {"HALT", 18}
+    };
+
+    // Initialize the instruction opcodes for 1-operand instructions
+    inst_1_op = {
+        {"ldc", 0},
+        {"adc", 1},
+        {"ldl", 2},
+        {"stl", 3},
+        {"ldnl", 4},
+        {"stnl", 5},
+        {"adj", 10},
+        {"call", 13},
+        {"brz", 15},
+        {"brlz", 16},
+        {"br", 17},
+        {"SET", 19},
+        {"data", 20}
+    };
+
+    // Initialize the instruction opcodes for 1-offset instructions
+    inst_1_of = {
+        {"call", 13},
+        {"brz", 15},
+        {"brlz", 16},
+        {"br", 17}
+    };
+
+    // Initialize the binary to hexadecimal conversion map
+    bin_to_hex = {
+        {"0000", '0'},
+        {"0001", '1'},
+        {"0010", '2'},
+        {"0011", '3'},
+        {"0100", '4'},
+        {"0101", '5'},
+        {"0110", '6'},
+        {"0111", '7'},
+        {"1000", '8'},
+        {"1001", '9'},
+        {"1010", 'A'},
+        {"1011", 'B'},
+        {"1100", 'C'},
+        {"1101", 'D'},
+        {"1110", 'E'},
+        {"1111", 'F'}
+    };
 }
 
-bool isValidLabel(string s)
-{
-    if(!(isalpha(s[0]) || s[0]=='_'))//check if the first character is alphabet or _
-    return false;
-
-    for(int i = 1; i<s.length();i++)
-    {
-        if(!(isalnum(s[i]) || s[i]=='_')) // check if all other characters are alphanumerical or _
+bool isValidLabel(string s) {
+    // Check if the label is valid
+    if (!(isalpha(s[0]) || s[0] == '_')) // Check if the first character is an alphabet or _
         return false;
+
+    for (int i = 1; i < s.length(); i++) {
+        if (!(isalnum(s[i]) || s[i] == '_')) // Check if all other characters are alphanumeric or _
+            return false;
     }
 
     return true;
 }
 
-int isValid(string s) // 0-invalid number, 1-invalid label, 2-valid label,3-decimal,4-octal,5-hexadecimal,6:-is a instruction
-{
-    if(inst_0_op.find(s)!= inst_0_op.end() || inst_1_op.find(s)!= inst_1_op.end())
-    {
-        return 6;
+int isValid(string s) {
+    // Check if the string is a valid label, number, or instruction
+    if (inst_0_op.find(s) != inst_0_op.end() || inst_1_op.find(s) != inst_1_op.end()) {
+        return 6; // Instruction
     }
-    if(isValidLabel(s))
-    {
-        if(labels.find(s) != labels.end())
-        return 2;
-        if(labels.find(s) == labels.end())
-        return 1;
+
+    if (isValidLabel(s)) {
+        if (labels.find(s) != labels.end())
+            return 2; // Valid label
+        if (labels.find(s) == labels.end())
+            return 1; // Invalid label
     }
+
     int len = s.length();
-    if(s[0]=='0' && len>=2)
-    {
-        if(s[1]=='X' || s[1]=='x')
-        {
-            for(int i = 2 ; i<len;i++)
-            {
-                if(!(isdigit(s[i]) || ((s[i]<='f' && s[i]>='a') || (s[i]>='A' && s[i]<='F'))))
-                return 0;
+    if (s[0] == '0' && len >= 2) {
+        if (s[1] == 'X' || s[1] == 'x') {
+            for (int i = 2; i < len; i++) {
+                if (!(isdigit(s[i]) || ((s[i] <= 'f' && s[i] >= 'a') || (s[i] >= 'A' && s[i] <= 'F'))))
+                    return 0; // Invalid number
             }
-            return 5;
+            return 5; // Hexadecimal
+        } else {
+            for (int i = 1; i < len; i++) {
+                if (!(s[i] >= '0' && s[i] <= '7'))
+                    return 0; // Invalid number
+            }
+            return 4; // Octal
         }
-        else
-        {
-            for(int i = 1 ; i<len;i++)
-            {
-                if(!(s[i]>='0' && s[i]<='7'))
-                return 0;
-            }
-            return 4;
+    } else {
+        for (int i = 0; i < len; i++) {
+            if (!(isdigit(s[i])))
+                return 0; // Invalid number
         }
-    }
-    else
-    {
-        for(int i = 0 ; i<len;i++)
-            {
-                if(!(isdigit(s[i])))
-                return 0;
-            }
-            return 3;
+        return 3; // Decimal
     }
 }
 
